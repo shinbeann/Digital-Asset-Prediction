@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 import torchmetrics
 
 # Custom
-# TODO
+from src.dataset import Normalizer
 
 
 def train_model(
@@ -29,10 +29,11 @@ def train_model(
     base_dir: str = "saved_models",
     save_interval: int = 100,
     verbose: bool = True
-) -> Tuple[List[float], List[float], List[float], List[float], List[float], List[float]]:
+) -> Tuple[List[float], List[float], List[float], List[float], List[float], List[float], Normalizer]:
     """
-    Trains the given model on provided crypto pricing dataset (via dataloaders). Will evaluate the model's performance on the
-    validation set every epoch. Model's parameters are saved after each specified number of epochs in the specified base directory.
+    Trains the given model on provided crypto pricing dataset (via dataloaders). Will evaluate the model's performance 
+    on the validation set every epoch. Model's parameters are saved after each specified number of epochs in the 
+    specified base directory.
 
     Args:
         model: Crypto model to train.
@@ -47,8 +48,10 @@ def train_model(
             Defaults to True.
             
     Returns:
-        Tuple[List[float], List[float], List[float], List[float]]: A tuple containing the history (values per epoch) 
-            for: training loss, validation loss, mean absolute error, and R2 score.
+        Tuple[List[float], List[float], List[float], List[float], Normalizer]: A tuple containing the history (values 
+            per epoch) for: training loss, validation loss, mean absolute error, R2 score, and `Normalizer` object which
+            contains the normalization statistics (mean and std) of the training data (to be used for normalization of
+            inputs during inference).
     """
     criterion = nn.MSELoss() # Can also consider `SmoothL1Loss` i.e. Huber Loss (middle ground between MSE and L1)
     training_loss_history, validation_loss_history, mae_history, r2_history = [], [], [], []
@@ -63,6 +66,10 @@ def train_model(
     
     # Track model with best R2 score for saving
     current_best_r2 = -1
+    
+    # Compute normalization statistics for training dataset (used to normalize evaluation inputs as well)
+    normalizer = Normalizer()
+    normalizer.fit(training_dataset=train_dataloader.dataset) # compute mean and std
     
     # Training step
     for epoch in range(num_epochs):
@@ -80,7 +87,8 @@ def train_model(
             target_batch = target_batch.to(model.device)
             crypto_idx_batch = crypto_idx_batch.to(model.device)
             
-            # TODO: Implement Normalizer to normalize inputs!
+            # Normalize inputs
+            seq_batch = normalizer(seq_batch)
             
             # Forward pass
             preds = model(seq_batch, crypto_idx_batch)
@@ -96,7 +104,7 @@ def train_model(
         training_loss = total_training_loss / len(train_dataloader.dataset) # Average loss per sample
         training_loss_history.append(training_loss)
         # 2) Evaluate model on validation set
-        validation_loss, validation_mae, validation_r2 = evaluate_crypto_model(model, validation_dataloader)
+        validation_loss, validation_mae, validation_r2 = evaluate_crypto_model(model, validation_dataloader, normalizer)
         validation_loss_history.append(validation_loss)
         mae_history.append(validation_mae)
         r2_history.append(validation_r2)
@@ -123,11 +131,12 @@ def train_model(
             
         if verbose: print("="*90) # Purely visual
 
-    return training_loss_history, validation_loss_history, mae_history, r2_history
+    return training_loss_history, validation_loss_history, mae_history, r2_history, normalizer
      
 def evaluate_crypto_model(
     model,
-    evaluation_dataloader: DataLoader
+    evaluation_dataloader: DataLoader,
+    normalizer: Normalizer
 ) -> Tuple[float, float, float]:
     """
     Evaluates the model's performance on the given evaluation dataset. 
@@ -135,6 +144,8 @@ def evaluate_crypto_model(
     Args:
         model: Crypto model to evaluate.
         evaluation_dataloader (DataLoader): The dataloader for the evaluation dataset.
+        normalizer (Normalizer): Normalizer object that has already been fitted to training data (i.e. normalization
+            statistics already computed).
 
     Returns:
         Tuple[float, float, float]: Tuple containing the model's average evaluation loss (per sample sequence), 
@@ -153,6 +164,9 @@ def evaluate_crypto_model(
             seq_batch = seq_batch.to(model.device)
             target_batch = target_batch.to(model.device)
             crypto_idx_batch = crypto_idx_batch.to(model.device)
+            
+            # Normalize inputs
+            seq_batch = normalizer(seq_batch)
             
             # Forward pass
             preds = model(seq_batch, crypto_idx_batch)

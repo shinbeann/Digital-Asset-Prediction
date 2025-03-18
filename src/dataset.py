@@ -2,11 +2,14 @@
 # Required Modules #
 ####################
 
+# Generic/Built-in
+from typing import *
+
 # Libs
 import pandas as pd
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 import torch.nn as nn
 
 
@@ -58,3 +61,41 @@ class CryptoDataset(Dataset):
         target = torch.tensor(target, dtype=torch.float32) # Scalar target
         crypto_idx = torch.tensor(crypto_idx, dtype=torch.long) # Categorical index for crypto
         return seq, target, crypto_idx
+
+
+class Normalizer:
+    def __init__(self, training_dataset: Optional[CryptoDataset | Subset] = None):
+        # Normalization statistics
+        self.mean = 0
+        self.std = 0
+        
+        if training_dataset:
+            self.fit(training_dataset)
+        
+    def fit(self, training_dataset: CryptoDataset):
+        """
+        We compute normalization statistics across all sequences from training dataset, including duplicate time steps 
+        from overlapping windows, to match the data distribution seen by the model during training.
+
+        Args:
+            training_dataset (CryptoDataset): Training dataset to compute normalization statistics from. 
+        """
+        
+        # Compute normalization statistics from given training dataset
+        all_features = [
+            training_dataset[i][0] # X of shape (seq_length, num_features)
+            for i in range(len(training_dataset))
+        ]
+
+        # Stack all sequences along the time dimension
+        all_features = torch.cat(all_features, dim=0)  # Shape: (total_time_steps, num_features)
+        
+        # Compute mean and std per feature
+        self.mean = torch.mean(all_features, dim=0)  # Shape: (num_features,)
+        self.std = torch.std(all_features, dim=0)  # Shape: (num_features,)
+        
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
+        """Applies normalization to input tensor."""
+        # x is of shape (x - self.mean) / self.std
+        x_norm = (x - self.mean) / (self.std + 1e-8)
+        return x_norm
