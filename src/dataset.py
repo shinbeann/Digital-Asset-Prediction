@@ -66,8 +66,8 @@ class CryptoDataset(Dataset):
 class Normalizer:
     def __init__(self, training_dataset: Optional[CryptoDataset | Subset] = None):
         # Normalization statistics
-        self.mean = 0
-        self.std = 0
+        self.mean: float = 0.0
+        self.std: float = 0.0
         
         if training_dataset:
             self.fit(training_dataset)
