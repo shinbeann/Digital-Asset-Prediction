@@ -123,8 +123,8 @@ if df_list:
     print(f"- Date range: {final_df.index.min()} to {final_df.index.max()}")
 else:
     print("\n❌ No data was collected. Please check your internet connection and API limits.")
-    start_date = datetime.strptime('2024-03-24', '%Y-%m-%d').date()
-    end_date = datetime.strptime('2025-03-24', '%Y-%m-%d').date()
+    start_date = datetime.strptime('2022-03-24', '%Y-%m-%d').date()
+    end_date = datetime.strptime('2023-03-24', '%Y-%m-%d').date()
     all_data = {}
     for i, asset in enumerate(top_assets):
         try:
