@@ -1,3 +1,9 @@
+"""
+RETIRED -> MOVED TO `data_scraper.py`
+
+Keeping code here for now as reference.
+"""
+
 import requests
 import pandas as pd
 import time
