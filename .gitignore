@@ -1,3 +1,5 @@
+.env
+
 kaggle_crypto_price_prediction
 kaggle_crypto_price_prediction.zip
 saved_models/
