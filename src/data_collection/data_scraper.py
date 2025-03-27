@@ -188,7 +188,7 @@ def get_daily_market_data_of_asset_from_coingecko(
             if response.status_code == 429:  # Rate limit exceeded
                 retry_count += 1
                 print(f"Rate limit exceeded. Retrying in {retry_wait_time} seconds... (Attempt {retry_count}/{max_retries})")
-                time.sleep(retry_wait_time)  # Wait 60 seconds before retrying
+                time.sleep(retry_wait_time)  # Wait before retrying
             else:
                 return None
 
@@ -199,7 +199,9 @@ def fetch_top_crypto_data_from_coingecko(
     limit: int = 100,
     vs_currency: str = "usd",
     days: int = 365,
-    output_filename: Optional[str] = None, 
+    output_filename: Optional[str] = None,
+    max_retries: int = 5,  
+    retry_wait_time: int = 10 
 ) -> Optional[pd.DataFrame]:
     """
     Fetches daily market data for the top cryptocurrency assets by market cap for a specified number of days and saves 
@@ -211,6 +213,9 @@ def fetch_top_crypto_data_from_coingecko(
         days (int, optional): Number of days of historical data to fetch. Defaults to 365.
         output_filename (Optional[str], optional): Name of the output CSV file. Defaults to None, which will generate a 
             filename based on the current date.
+        max_retries (int, optional): The maximum number of retry attempts in case of rate limits. Defaults to 5.
+        retry_wait_time (int, optional): Wait time in seconds before retrying the request after rate limit exceeded.
+            Defaults to 10.
 
     Returns:
         Optional[pd.DataFrame]: Combined data as a DataFrame if data is collected, else None.
@@ -230,7 +235,9 @@ def fetch_top_crypto_data_from_coingecko(
             df = get_daily_market_data_of_asset_from_coingecko(
                 asset_id=asset_id, 
                 vs_currency=vs_currency,
-                days=days
+                days=days,
+                max_retries=max_retries,
+                retry_wait_time=retry_wait_time
             )
             if df is not None:
                 df["asset"] = asset_id  # Add asset ID as a feature directly in the fetched data
