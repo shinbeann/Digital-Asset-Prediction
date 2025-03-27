@@ -1,150 +1,190 @@
-"""
-RETIRED -> MOVED TO `data_scraper.py`
-
-Keeping code here for now as reference.
-"""
-
-import requests
+import ccxt
 import pandas as pd
-import time
+import numpy as np
 from datetime import datetime, timedelta
+import time
+import os
+from dotenv import load_dotenv
 
-# Function to get the top 100 cryptocurrencies by market cap
-def get_top_assets():
-    url = "https://api.coingecko.com/api/v3/coins/markets"
-    params = {
-        "vs_currency": "usd",
-        "order": "market_cap_desc",
-        "per_page": 100,
-        "page": 1
-    }
-    response = requests.get(url, params=params)
-    if response.status_code != 200:
-        print("Error fetching top assets:", response.json())
-        return []
-    data = response.json()
-    
-    # Extract coin IDs
-    asset_list = [coin["id"] for coin in data]
-    return asset_list
+# Load environment variables
+load_dotenv()
 
-# Function to fetch daily price history (not OHLC)
-def get_daily_market_data(asset_id, vs_currency="usd", days=365):
-    url = f"https://api.coingecko.com/api/v3/coins/{asset_id}/market_chart"
-    params = {"vs_currency": vs_currency, "days": days, "interval": "daily"}
-    
-    response = requests.get(url, params=params)
-    if response.status_code != 200:
-        print(f"Error fetching {asset_id}: {response.status_code}")
-        if response.status_code == 429:
-            print("Rate limit exceeded. Waiting longer...")
-            time.sleep(60)  # Wait longer if rate limited
-        return None
-    
-    data = response.json()
-    if not data or "prices" not in data:
-        print(f"No price data for {asset_id}")
-        return None
-    
-    # Get price data (timestamps and prices)
-    prices = data["prices"]
-    volumes = data["total_volumes"]
-    market_caps = data["market_caps"]
-    
-    # Create DataFrame
-    df_prices = pd.DataFrame(prices, columns=["timestamp", "price"])
-    df_volumes = pd.DataFrame(volumes, columns=["timestamp", "volume"])
-    df_market_caps = pd.DataFrame(market_caps, columns=["timestamp", "market_cap"])
-    
-    # Convert timestamps and set as index
-    df_prices["date"] = pd.to_datetime(df_prices["timestamp"], unit="ms").dt.date
-    df_prices.set_index("date", inplace=True)
-    
-    df_volumes["date"] = pd.to_datetime(df_volumes["timestamp"], unit="ms").dt.date
-    df_volumes.set_index("date", inplace=True)
-    
-    df_market_caps["date"] = pd.to_datetime(df_market_caps["timestamp"], unit="ms").dt.date
-    df_market_caps.set_index("date", inplace=True)
-    
-    # Merge dataframes
-    df = pd.DataFrame({
-        "price": df_prices["price"],
-        "volume": df_volumes["volume"],
-        "market_cap": df_market_caps["market_cap"]
-    })
-    
-    # Compute daily returns
-    df["daily_return"] = df["price"].pct_change()
-    
-    return df
-
-# Get the top 100 assets
-print("Fetching top 100 cryptocurrency assets by market cap...")
-top_assets = get_top_assets()
-print(f"Found {len(top_assets)} assets")
-
-# Dictionary to store data
-all_data = {}
-
-# Fetch daily data for each asset
-for i, asset in enumerate(top_assets):
-    try:
-        print(f"[{i+1}/{len(top_assets)}] Fetching daily data for {asset}...")
-        df = get_daily_market_data(asset)
-        if df is not None:
-            all_data[asset] = df
-            print(f"✓ Successfully fetched {len(df)} days of data for {asset}")
-        else:
-            print(f"✗ No data retrieved for {asset}")
+class BinanceDataScraper:
+    def __init__(self, api_key=None, api_secret=None):
+        """
+        Initialize Binance exchange connection
         
-        # Adjust sleep time based on position in the list
-        sleep_time = 6 if i % 10 == 0 else 3  # Longer pause every 10 requests
-        print(f"Waiting {sleep_time} seconds to avoid API rate limits...")
-        time.sleep(sleep_time)
-    except Exception as e:
-        print(f"Error fetching {asset}: {e}")
+        Args:
+            api_key (str, optional): Binance API key from .env
+            api_secret (str, optional): Binance API secret from .env
+        """
+        # Fetch keys from environment variables if not provided
+        api_key = api_key or os.getenv('KEY_1')
+        api_secret = api_secret or os.getenv('KEY_2')
+        
+        # Initialize exchange
+        self.exchange = ccxt.binance({
+            'apiKey': api_key,
+            'secret': api_secret,
+            'enableRateLimit': True,
+            'options': {
+                'defaultType': 'spot'  # Use spot market by default
+            }
+        })
 
-# Combine all data into a single DataFrame
-print("\nCombining data from all assets...")
-df_list = []
-for asset, df in all_data.items():
-    df_with_asset = df.copy()
-    df_with_asset["asset"] = asset
-    df_list.append(df_with_asset)
+    def fetch_comprehensive_data(self, 
+                                  symbol, 
+                                  start_date='2022-03-24', 
+                                  end_date='2025-03-24'):
+        """
+        Fetch comprehensive cryptocurrency data
+        
+        Args:
+            symbol (str): Trading pair symbol (e.g., 'BTC/USDT')
+            start_date (str): Start date in YYYY-MM-DD format
+            end_date (str): End date in YYYY-MM-DD format
+        
+        Returns:
+            pandas.DataFrame: Comprehensive cryptocurrency data
+        """
+        # Convert dates to timestamps
+        start_timestamp = int(datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
+        end_timestamp = int(datetime.strptime(end_date, '%Y-%m-%d').timestamp() * 1000)
+        
+        # Initialize empty list to store all OHLCV data
+        ohlcv_data = []
+        
+        # Fetch data in chunks to avoid API limitations
+        current_start = start_timestamp
+        while current_start < end_timestamp:
+            try:
+                # Fetch 500 candles at a time (Binance limit)
+                candles = self.exchange.fetch_ohlcv(
+                    symbol, 
+                    timeframe='1d', 
+                    since=current_start,
+                    limit=500
+                )
+                
+                # Break if no more data
+                if not candles:
+                    break
+                
+                # Add to data list
+                ohlcv_data.extend(candles)
+                
+                # Update start timestamp for next iteration
+                current_start = candles[-1][0] + 1
+                
+                # Respect rate limits
+                time.sleep(self.exchange.rateLimit / 1000)
+                
+            except Exception as e:
+                print(f"Error fetching data for {symbol}: {e}")
+                break
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        
+        # Convert timestamp to datetime and set as index
+        df['date'] = pd.to_datetime(df['timestamp'], unit='ms')
+        
+        # Calculate market cap (estimated using close price and volume)
+        # Note: This is a rough estimation and may not be entirely accurate
+        df['market_cap'] = df['close'] * df['volume']
+        
+        # Compute daily returns
+        df['daily_return'] = df['close'].pct_change()
+        
+        # Select and rename columns
+        result_df = df[['date', 'close', 'volume', 'market_cap', 'daily_return']].copy()
+        result_df.columns = ['date', 'price', 'volume', 'market_cap', 'daily_return']
+        
+        # Add asset column
+        result_df['asset'] = symbol  # Use base currency as asset name
+        
+        # Set date as index
+        result_df.set_index('date', inplace=True)
+        
+        # Filter date range
+        result_df = result_df.loc[start_date:end_date]
+        
+        return result_df
 
-if df_list:
-    final_df = pd.concat(df_list)
-    
-    # Save to CSV
-    output_filename = f"top_crypto_daily_data_{datetime.now().strftime('%Y%m%d')}.csv"
-    final_df.to_csv(output_filename)
-    print(f"\n✅ Daily data collection complete! Data saved as '{output_filename}'.")
-    
-    # Print summary
-    asset_count = len(all_data)
-    total_records = len(final_df)
-    print(f"\nSummary:")
-    print(f"- Successfully collected data for {asset_count} cryptocurrencies")
-    print(f"- Total records: {total_records}")
-    print(f"- Date range: {final_df.index.min()} to {final_df.index.max()}")
-else:
-    print("\n❌ No data was collected. Please check your internet connection and API limits.")
-    start_date = datetime.strptime('2022-03-24', '%Y-%m-%d').date()
-    end_date = datetime.strptime('2023-03-24', '%Y-%m-%d').date()
-    all_data = {}
-    for i, asset in enumerate(top_assets):
+    def fetch_top_symbols(self, limit=100):
+        """
+        Fetch top trading symbols by volume
+        
+        Args:
+            limit (int): Number of top symbols to return
+        
+        Returns:
+            list: Top trading symbols
+        """
         try:
-            print(f"[{i+1}/{len(top_assets)}] Fetching daily data for {asset}...")
-            df = get_daily_market_data(asset, days=(end_date - start_date).days)
-            if df is not None:
-                all_data[asset] = df
-                print(f"✓ Successfully fetched {len(df)} days of data for {asset}")
-            else:
-                print(f"✗ No data retrieved for {asset}")
+            # Load markets
+            self.exchange.load_markets()
             
-            # Adjust sleep time based on position in the list
-            sleep_time = 6 if i % 10 == 0 else 3  # Longer pause every 10 requests
-            print(f"Waiting {sleep_time} seconds to avoid API rate limits...")
-            time.sleep(sleep_time)
+            # Sort markets by daily volume
+            markets = sorted(
+                self.exchange.markets.values(), 
+                key=lambda x: x.get('quote', 'USDT') == 'USDT' and x.get('active', False),
+                reverse=True
+            )
+            
+            # Filter USDT pairs and get top symbols
+            usdt_pairs = [
+                market['symbol'] for market in markets 
+                if market['quote'] == 'USDT' and market['active']
+            ]
+            
+            return usdt_pairs[:limit]
+        
         except Exception as e:
-            print(f"Error fetching {asset}: {e}")
+            print(f"Error fetching top symbols: {e}")
+            return []
+
+def main():
+    # Initialize scraper using environment variables
+    scraper = BinanceDataScraper()
+    
+    # Get top trading symbols
+    top_symbols = scraper.fetch_top_symbols(limit=100)
+    print(f"Fetching data for {len(top_symbols)} top symbols")
+    
+    # Dictionary to store all data
+    all_data = {}
+    
+    # Fetch data for each symbol
+    for symbol in top_symbols:
+        try:
+            print(f"Fetching data for {symbol}")
+            df = scraper.fetch_comprehensive_data(symbol)
+            
+            if not df.empty:
+                all_data[symbol] = df
+                print(f"✓ Collected {len(df)} days of data for {symbol}")
+            
+            # Optional: Add a small delay between symbol fetches
+            time.sleep(1)
+        
+        except Exception as e:
+            print(f"Error processing {symbol}: {e}")
+    
+    # Combine all data
+    if all_data:
+        # Concatenate all dataframes
+        final_df = pd.concat(all_data.values())
+        
+        # Save to CSV
+        output_filename = f"binance_crypto_data_{datetime.now().strftime('%Y%m%d')}.csv"
+        final_df.to_csv(output_filename)
+        
+        print(f"\n✅ Data collection complete. Saved to {output_filename}")
+        print(f"Symbols collected: {len(all_data)}")
+        print(f"Total records: {len(final_df)}")
+    else:
+        print("No data collected.")
+
+if __name__ == "__main__":
+    main()
