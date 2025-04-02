@@ -27,7 +27,7 @@ http.mount("http://", adapter)
 
 def fetch_news_data(start_date, end_date, page=1):
     """Fetch news data from CryptoPanic API."""
-    url = f"{BASE_URL}?auth_token=b6b6faa06a397aa66e09e34f62682fed7aa8ac32&filter=crypto&before={end_date}&after={start_date}&page={page}&public=true"
+    url = f"{BASE_URL}?auth_token={API_KEY}&filter=crypto&before={end_date}&after={start_date}&page={page}&public=true"
 
     try:
         response = requests.get(url, timeout=10)
