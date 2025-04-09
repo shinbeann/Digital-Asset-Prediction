@@ -139,7 +139,8 @@ def train_model(
         if verbose: print("="*90) # Purely visual
 
     return training_loss_history, validation_loss_history, mae_history, r2_history, normalizer
-     
+ 
+    
 def evaluate_crypto_model(
     model: CryptoBaseModel,
     evaluation_dataloader: DataLoader,
@@ -195,6 +196,7 @@ def evaluate_crypto_model(
 
     return final_evaluation_loss, final_mae, final_r2
 
+
 def save_model(
     model: nn.Module, 
     model_filename: str, 
@@ -214,4 +216,65 @@ def save_model(
     torch.save(model.state_dict(), model_path) # Save state dictionary
     if verbose: print(f"✅ Model saved: {model_path}")
 
+# training_loss_history, validation_loss_history, mae_history, r2_history, normalizer
+def save_training_plots_and_metric_history(
+    training_loss_history: List[float], 
+    validation_loss_history: List[float], 
+    mae_history: List[float], 
+    r2_history: List[float], 
+    model_name: str,
+    figsize: Tuple[float, float] = (7.0, 4.0),
+    base_dir: str = "results"
+) -> None:
+    """
+    Saves plots for the training process metrics (`.png` images) and the input metric histories in a subdirectory
+    inside the specified directory.
+
+    Args:
+        training_loss_history (List[float]): History of training loss values.
+        validation_loss_history (List[float]): History of validation loss values.
+        mae_history (List[float]): History of Mean Absolute Error (MAE) values.
+        r2_history (List[float]): History of R2 score values.
+        model_name (str): Name of model (only for the subdirectory name).
+        figsize (Tuple[float, float]): Width, height of plots in inches. Defaults to (7.0, 4.0). 
+        base_dir (str, optional): Directory to save plots and histories of metrics in. Defaults to "results".
+    """
+    # Create subdirectory to save metric histories and the plots to. 
+    os.makedirs(base_dir, exist_ok=True) # Creates base directory
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Use timestamp as subdirectory name
+    save_dir = os.path.join(base_dir, model_name + "_" + timestamp)
+    os.makedirs(save_dir, exist_ok=True) # Create subdirectory
     
+    epochs = range(1, len(training_loss_history) + 1)  
+
+    # Plotting for all metrics
+    eval_metric_names = ["Training Loss", "Validation Loss", "MAE", "R2 score"]
+    eval_metrics = [training_loss_history, validation_loss_history, mae_history, r2_history]
+
+    # Create and save the plots
+    for i, eval_metric in enumerate(eval_metric_names):
+        plt.figure(figsize=figsize)
+        plt.plot(epochs, eval_metrics[i], label=eval_metric, color="red", marker="o")
+        plt.xlabel("Epochs")
+        plt.ylabel(eval_metric)
+        plt.title(f"{eval_metric} Over Epochs")
+
+        plt.grid(True)
+        plot_path = os.path.join(save_dir, f"{eval_metric}.png")
+        plt.savefig(plot_path)
+        plt.show() # Display plot
+        plt.close()
+    print(f"✅ Plots saved to: {save_dir}")
+        
+    # Save the metric histories as tensors using torch.save
+    metric_histories = {
+        "training_loss_history": torch.tensor(training_loss_history),
+        "validation_loss_history": torch.tensor(validation_loss_history),
+        "mae_history": torch.tensor(mae_history),
+        "r2_history": torch.tensor(r2_history)
+    }
+
+    # Save all histories as a dictionary
+    history_path = os.path.join(save_dir, "metric_histories.pth")
+    torch.save(metric_histories, history_path)
+    print(f"✅ Metric histories saved to: {history_path}")
