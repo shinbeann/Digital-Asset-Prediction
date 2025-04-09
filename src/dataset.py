@@ -30,11 +30,7 @@ class CryptoDataset(Dataset):
         self.df = pd.read_csv(csv_file) 
         self.df['date'] = pd.to_datetime(self.df['date']) # Datetime conversion
         self.df = self.df.sort_values(['symbol', 'date']) # Should already be sorted but just in case
-        self.feature_cols = [
-            'open', 'high', 'low', 'close', 'volume', 'market_cap', 
-            'daily_return', 'sp500', 'treasury_spread', 'fear_greed', 
-            'gold_price_usd'
-        ]
+        self.feature_cols = [col for col in self.df.columns if col not in ['date', 'symbol']]
         self.num_features = len(self.feature_cols)
         self.target_col = 'close' # Closing price of next time step
         
@@ -62,7 +58,7 @@ class CryptoDataset(Dataset):
         # Get target: next time step's closing price
         target = self.df.iloc[end_idx][self.target_col]
         
-        X = torch.tensor(sequence_features, dtype=torch.float) # Shape: (seq_length, num_features)
+        X = torch.tensor(sequence_features, dtype=torch.float32) # Shape: (seq_length, num_features)
         y = torch.tensor(target, dtype=torch.float32) # Scalar target
         return X, y
     

@@ -18,25 +18,27 @@ import torchmetrics
 
 # Custom
 from src.dataset import Normalizer
+from src.models import CryptoBaseModel
 
 
 def train_model(
-    model,
+    model: CryptoBaseModel,
     optimizer: torch.optim.Optimizer,
     train_dataloader: DataLoader,
     validation_dataloader: DataLoader,
     num_epochs: int = 100,
     base_dir: str = "saved_models",
     save_interval: int = 100,
-    verbose: bool = True
-) -> Tuple[List[float], List[float], List[float], List[float], List[float], List[float], Normalizer]:
+    verbose: bool = True,
+    device: Optional[torch.device] = None
+) -> Tuple[List[float], List[float], List[float], List[float], Normalizer]:
     """
     Trains the given model on provided crypto pricing dataset (via dataloaders). Will evaluate the model's performance 
     on the validation set every epoch. Model's parameters are saved after each specified number of epochs in the 
     specified base directory.
 
     Args:
-        model: Crypto model to train.
+        model (CryptoBaseModel): Crypto model to train.
         optimizer (torch.optim.Optimizer): Optimizer for training.
         train_dataloader (DataLoader): Data loader with training dataset.
         validation_dataloader (DataLoader): Data loader with validation dataset.
@@ -46,6 +48,8 @@ def train_model(
             will be saved every x epochs. Defaults to 100.
         verbose (bool, optional): Whether to print the model's validation metrics after each training epoch. 
             Defaults to True.
+        device (Optional[torch.device], optional): The device the model and batch data should be loaded on. 
+            Defaults to None, in which case the device will be set to CUDA if available, or CPU otherwise.
             
     Returns:
         Tuple[List[float], List[float], List[float], List[float], Normalizer]: A tuple containing the history (values 
@@ -53,6 +57,10 @@ def train_model(
             contains the normalization statistics (mean and std) of the training data (to be used for normalization of
             inputs during inference).
     """
+    # Device
+    device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    
     criterion = nn.MSELoss() # Can also consider `SmoothL1Loss` i.e. Huber Loss (middle ground between MSE and L1)
     training_loss_history, validation_loss_history, mae_history, r2_history = [], [], [], []
     
@@ -82,16 +90,15 @@ def train_model(
             optimizer.zero_grad()
             
             # Unpack the mini-batch data and move batch data to device
-            seq_batch, target_batch, crypto_idx_batch = batch
-            seq_batch = seq_batch.to(model.device)
-            target_batch = target_batch.to(model.device)
-            crypto_idx_batch = crypto_idx_batch.to(model.device)
+            seq_batch, target_batch = batch
+            seq_batch = seq_batch.to(device)
+            target_batch = target_batch.to(device)
             
             # Normalize inputs
             seq_batch = normalizer(seq_batch)
             
             # Forward pass
-            preds = model(seq_batch, crypto_idx_batch)
+            preds = model(seq_batch)
             loss = criterion(preds, target_batch)
             total_training_loss += loss.item()
             
@@ -134,42 +141,46 @@ def train_model(
     return training_loss_history, validation_loss_history, mae_history, r2_history, normalizer
      
 def evaluate_crypto_model(
-    model,
+    model: CryptoBaseModel,
     evaluation_dataloader: DataLoader,
-    normalizer: Normalizer
+    normalizer: Normalizer,
+    device: Optional[torch.device] = None
 ) -> Tuple[float, float, float]:
     """
     Evaluates the model's performance on the given evaluation dataset. 
 
     Args:
-        model: Crypto model to evaluate.
+        model (CryptoBaseModel): Crypto model to evaluate.
         evaluation_dataloader (DataLoader): The dataloader for the evaluation dataset.
         normalizer (Normalizer): Normalizer object that has already been fitted to training data (i.e. normalization
             statistics already computed).
+        device: The device to load batch data onto, which should be the same device that the model is on. Defaults to
+            None, in which case the device that the model is on will be inferred by checking the model's first parameter.
 
     Returns:
         Tuple[float, float, float]: Tuple containing the model's average evaluation loss (per sample sequence), 
             mean absolute error, and R2 score. 
     """
+    device = device or next(model.parameters()) # Infer the device the model is on by checking the first parameter
+    
     model.eval() # Set model to evaluation mode
     criterion = nn.MSELoss()
     total_loss = 0
-    mae = torchmetrics.MeanAbsoluteError().to(model.device)
-    r2 = torchmetrics.R2Score().to(model.device)
+    mae = torchmetrics.MeanAbsoluteError().to(device)
+    r2 = torchmetrics.R2Score().to(device)
     
     with torch.no_grad():  # No gradients needed for evaluation
         for batch in evaluation_dataloader:
             # Unpack the mini-batch data and move batch data to device
-            seq_batch, target_batch, crypto_idx_batch = batch
-            seq_batch = seq_batch.to(model.device)
-            target_batch = target_batch.to(model.device)
-            crypto_idx_batch = crypto_idx_batch.to(model.device)
+            seq_batch, target_batch = batch
+            seq_batch = seq_batch.to(device)
+            target_batch = target_batch.to(device)
             
             # Normalize inputs
             seq_batch = normalizer(seq_batch)
             
             # Forward pass
-            preds = model(seq_batch, crypto_idx_batch)
+            preds = model(seq_batch)
 
             # Update metrics
             loss = criterion(preds, target_batch)
