@@ -108,7 +108,7 @@ def train_model(
             
         # After each epoch
         # 1) Save the average loss per sample for the epoch to loss_history
-        training_loss = total_training_loss / len(train_dataloader.dataset) # Average loss per sample
+        training_loss = total_training_loss / len(train_dataloader)
         training_loss_history.append(training_loss)
         # 2) Evaluate model on validation set
         validation_loss, validation_mae, validation_r2 = evaluate_crypto_model(model, validation_dataloader, normalizer)
@@ -190,7 +190,7 @@ def evaluate_crypto_model(
             r2.update(preds, target_batch)
 
     # Compute final metric values
-    final_evaluation_loss = total_loss / len(evaluation_dataloader.dataset) # Average loss per sample
+    final_evaluation_loss = total_loss / len(evaluation_dataloader)
     final_mae = mae.compute().item()
     final_r2 = r2.compute().item()
 

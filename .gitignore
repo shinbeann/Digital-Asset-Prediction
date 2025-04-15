@@ -1,5 +1,5 @@
 .env
 
-saved_models/
+
 results/
 **/__pycache__/
