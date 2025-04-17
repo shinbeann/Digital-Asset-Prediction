@@ -46,13 +46,19 @@ if selected_tickers:
     st.subheader("Suggested Purchase % on March 24, 2025")
     
     # Filter the dataframe based on selected tickers
-    selected_data = predictions_df[predictions_df['symbol'].isin(selected_tickers)]
+    filtered_df = predictions_df[predictions_df['symbol'].isin(selected_tickers)].copy()
+
+    # normalised data
+    total = filtered_df['percent_of_coins'].sum()
+    filtered_df['rescaled_percent'] = (filtered_df['percent_of_coins'] / total) * 100
     
-    # Sort the selected tickers by 'percentage_of_coins'
-    sorted_data = selected_data.sort_values(by='percent_of_coins', ascending=False)
+    filtered_df = filtered_df.sort_values(by='rescaled_percent', ascending=False)
     
-    # Display the result
-    st.dataframe(sorted_data[['symbol', 'percent_of_coins']].style.format({'percentage_of_coins': "{:.2f}"}))
+    st.dataframe(
+        filtered_df[['symbol', 'rescaled_percent']]
+        .rename(columns={'rescaled_percent': 'Suggested % to Purchase'})
+        .style.format({'Suggested % to Purchase': "{:.2f}"})
+    )
 
 else:
     st.info("Please select at least one ticker to see predictions.")
