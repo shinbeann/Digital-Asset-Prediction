@@ -48,20 +48,24 @@ class CryptoGRU(CryptoBaseModel):
         self, 
         input_size: int = 11, 
         hidden_size: int = 64, 
-        num_layers: int = 1, 
-        dropout_prob: float = 0.1
+        num_layers: int = 3,
+        dropout_prob: float = 0.1,
+        bidirectional: bool = True
     ):
         super().__init__(input_size, hidden_size, num_layers, dropout_prob)
+        self.bidirectional = bidirectional
         self.gru = nn.GRU(
             input_size=self.input_size,
             hidden_size=self.hidden_size,
             num_layers=self.num_layers,
             batch_first=True,
-            dropout=self.dropout_prob if self.num_layers > 1 else 0
+            dropout=self.dropout_prob if self.num_layers > 1 else 0,
+            bidirectional=self.bidirectional
         )
         
         # Fully connected layer to map output hidden state to predicted closing price
-        self.fc = nn.Linear(self.hidden_size, 1)
+        self.fc_input_size = 2 * self.hidden_size if self.bidirectional else self.hidden_size
+        self.fc = nn.Linear(self.fc_input_size, 1)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x shape: (batch_size, seq_length, input_size)
@@ -81,20 +85,24 @@ class CryptoLSTM(CryptoBaseModel):
         self, 
         input_size: int = 11, 
         hidden_size: int = 64, 
-        num_layers: int = 1, 
-        dropout_prob: float = 0.1
+        num_layers: int = 2, 
+        dropout_prob: float = 0.1,
+        bidirectional: bool = True
     ):
         super().__init__(input_size, hidden_size, num_layers, dropout_prob)
+        self.bidirectional = bidirectional
         self.lstm = nn.LSTM(
             input_size=self.input_size,
             hidden_size=self.hidden_size,
             num_layers=self.num_layers,
             batch_first=True,
-            dropout=self.dropout_prob if self.num_layers > 1 else 0
+            dropout=self.dropout_prob if self.num_layers > 1 else 0,
+            bidirectional=self.bidirectional
         )
         
-        # Fully connected layer to map output hidden state to predicted closing price
-        self.fc = nn.Linear(self.hidden_size, 1)
+         # Fully connected layer to map output hidden state to predicted closing price
+        self.fc_input_size = 2 * self.hidden_size if self.bidirectional else self.hidden_size
+        self.fc = nn.Linear(self.fc_input_size, 1)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x shape: (batch_size, seq_length, input_size)
