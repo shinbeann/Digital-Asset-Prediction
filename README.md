@@ -22,7 +22,7 @@ The primary objective of this project is to forecast the future closing prices o
     - `models.py`: Contains code for four deep learning architectures for sequence processing implemented in PyTorch - GRU, LSTM, Transformer, and Informer.
     - `train_eval.py`: Contains code for training and evaluation of models.
     - `utils.py`: Helper functions.
-- `ui/`: Contains code for running GUI
+- `app.py`: GUI App code.
 
 ## Usage
 This code was developed using Python 3.12.8.
@@ -37,4 +37,4 @@ This code was developed using Python 3.12.8.
     pip install -r requirements.txt
     ```
 3. Run the various notebooks for data collection, processing, training, and inference (see above).
-4. The GUI can be ran using [TODO]
+4. The GUI can be ran using `streamlit run app.py`.
