@@ -96,6 +96,7 @@ if selected_date:
             actual_close = next_day.iloc[0]['close']
 
             crypto_inputs.append({
+                'prev_close': window.iloc[-1]['close'],
                 'symbol': symbol,
                 'predicted_close': pred,
                 'actual_close': actual_close,
@@ -106,14 +107,35 @@ if selected_date:
         results_df = pd.DataFrame(crypto_inputs)
         results_df = results_df.sort_values(by='predicted_close', ascending=False)
 
-        st.subheader(f"Predicted vs Actual Close Prices on {selected_date.strftime('%Y-%m-%d')}")
+        # Calculate percentage increase from previous close
+        results_df['percentage_increase'] = (results_df['predicted_close'] - results_df['prev_close']) / results_df['prev_close'] * 100
+
+        # Calculate portfolio allocation proportions
+        total_percentage_increase = results_df['percentage_increase'].sum()
+        results_df['proportion'] = results_df['percentage_increase'] / total_percentage_increase
+        results_df['percent_of_coins'] = (results_df['proportion'] * 100).round().astype(int)
+        
+        # Adjust for rounding errors to ensure total equals 100%
+        total_coins = results_df['percent_of_coins'].sum()
+        if total_coins != 100:
+            # Find the symbol with the largest rounding error
+            difference = 100 - total_coins
+            # Adjust the first row (which has the highest predicted close)
+            results_df.iloc[0, results_df.columns.get_loc('percent_of_coins')] += difference
+
+        st.subheader(f"Recommended Portfolio Allocation for {selected_date.strftime('%Y-%m-%d')}")
+        
+        # Display only symbol and allocation percentage
         st.dataframe(
-            results_df[['symbol', 'predicted_close', 'actual_close']]
+            results_df[['symbol', 'percent_of_coins']]
             .rename(columns={
-                'predicted_close': 'Predicted Close Price',
-                'actual_close': 'Actual Close Price'
+                'symbol': 'Cryptocurrency',
+                'percent_of_coins': 'Allocation %'
             })
-            .style.format({'Predicted Close Price': '${:.2f}', 'Actual Close Price': '${:.2f}'})
+            .style.format({'Allocation %': '{:.0f}%'})
         )
+        
+        # Display total allocation (should always be 100%)
+        st.write(f"Total allocation: {results_df['percent_of_coins'].sum()}%")
     else:
         st.warning("Not enough data to make predictions for the selected date.")
