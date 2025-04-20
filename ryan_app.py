@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import rcParams
 
 from src.models import CryptoInformer  # Your model class
 from src.dataset import Normalizer, CryptoDataset
@@ -123,19 +125,71 @@ if selected_date:
             # Adjust the first row (which has the highest predicted close)
             results_df.iloc[0, results_df.columns.get_loc('percent_of_coins')] += difference
 
+
+        results_df = results_df[results_df['percent_of_coins'] > 0]
+        results_df = results_df.sort_values(by='predicted_close', ascending=False)
+
         st.subheader(f"Recommended Portfolio Allocation for {selected_date.strftime('%Y-%m-%d')}")
         
-        # Display only symbol and allocation percentage
-        st.dataframe(
-            results_df[['symbol', 'percent_of_coins']]
-            .rename(columns={
-                'symbol': 'Cryptocurrency',
-                'percent_of_coins': 'Allocation %'
-            })
-            .style.format({'Allocation %': '{:.0f}%'})
-        )
+        col_table, col_chart = st.columns([1, 2])
         
-        # Display total allocation (should always be 100%)
-        st.write(f"Total allocation: {results_df['percent_of_coins'].sum()}%")
+        with col_table:
+            # Display the formatted table
+            st.dataframe(
+                results_df[['symbol', 'percent_of_coins']]
+                .rename(columns={
+                    'symbol': 'Cryptocurrency',
+                    'percent_of_coins': 'Allocation %'
+                })
+                .style.format({'Allocation %': '{:.0f}%'})
+                .set_properties(**{'text-align': 'center'})
+                .set_table_styles([{
+                    'selector': 'th',
+                    'props': [('text-align', 'center')]
+                }])
+            )
+            st.write(f"*Total allocation: {results_df['percent_of_coins'].sum()}%*")
+
+        with col_chart:
+            # Configure plot style
+            rcParams['font.size'] = 10
+            fig, ax = plt.subplots(figsize=(8, 6))
+            
+            # Create custom colors
+            colors = plt.cm.tab20c(np.linspace(0, 1, len(results_df)))
+            
+            # Create pie chart
+            wedges, texts, autotexts = ax.pie(
+                results_df['percent_of_coins'],
+                labels=None,  # We'll use legend instead
+                colors=colors,
+                startangle=90,
+                wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
+                pctdistance=0.8,
+                autopct=lambda p: f'{p:.1f}%' if p >= 5 else ''
+            )
+            
+            # Style percentage labels
+            plt.setp(autotexts, size=9, weight="bold", color='black')
+            
+            # Add legend with symbols and allocations
+            legend_labels = [
+                f"{row['symbol']} ({row['percent_of_coins']}%)" 
+                for _, row in results_df.iterrows()
+            ]
+            
+            ax.legend(
+                wedges,
+                legend_labels,
+                title="Cryptocurrencies",
+                loc="center left",
+                bbox_to_anchor=(1, 0.5),
+                frameon=False
+            )
+            
+            ax.set_title('Portfolio Allocation', pad=20)
+            plt.tight_layout()
+            st.pyplot(fig)
+
     else:
         st.warning("Not enough data to make predictions for the selected date.")
