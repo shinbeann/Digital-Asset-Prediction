@@ -96,10 +96,10 @@ if selected_date:
             actual_close = next_day.iloc[0]['close']
 
             crypto_inputs.append({
-                'prev_close': window.iloc[-1]['close'],
-                'symbol': symbol,
-                'predicted_close': pred,
-                'actual_close': actual_close,
+                'prev_close': float(window.iloc[-1]['close']),
+                'symbol':str(symbol),
+                'predicted_close': float(pred),
+                'actual_close': float(actual_close),
             })
 
     # Display results
