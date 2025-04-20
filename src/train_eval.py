@@ -60,6 +60,7 @@ def train_model(
     # Device
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
+    if verbose: print(f"Model moved to {device}")
     
     criterion = nn.MSELoss() # Can also consider `SmoothL1Loss` i.e. Huber Loss (middle ground between MSE and L1)
     training_loss_history, validation_loss_history, mae_history, r2_history = [], [], [], []
@@ -70,19 +71,23 @@ def train_model(
     model_type = type(model).__name__
     subdirectory_name = f"{model_type}_{timestamp}"
     save_dir = os.path.join(base_dir, subdirectory_name) # Subdirectory
+    if verbose: print(f"(1) Creating subdirectory ({save_dir}) for saving model params...")
     os.makedirs(save_dir, exist_ok=True)
     
     # Track model with best R2 score for saving
     current_best_r2 = -1
     
     # Compute normalization statistics for training dataset (used to normalize evaluation inputs as well)
+    if verbose: print("(2) Computing normalization statistics from the training dataset...")
     normalizer = Normalizer()
     normalizer.fit(training_dataset=train_dataloader.dataset) # compute mean and std
     
     # Training step
+    if verbose: print(f"(3) Beginning training loop ({num_epochs} epochs)...")
+    training_start = time.time()
     for epoch in range(num_epochs):
         epoch += 1 # Account for zero-indexing
-        start_time = time.time()
+        epoch_start = time.time()
         total_training_loss = 0
         model.train() # Set model to training mode
         
@@ -116,8 +121,8 @@ def train_model(
         mae_history.append(validation_mae)
         r2_history.append(validation_r2)
         # 3) Record time taken for epoch (training + validation)
-        end_time = time.time()
-        epoch_time = end_time - start_time
+        epoch_end = time.time()
+        epoch_time = epoch_end - epoch_start
         
         if verbose:
             print(f"Epoch [{epoch}/{num_epochs}] | Time: {epoch_time:.2f}s")
@@ -128,16 +133,21 @@ def train_model(
         # Save model if it has best R2
         if validation_r2 > current_best_r2:
             current_best_r2 = validation_r2 # Update new best R2 score
-            model_filename = f"{model_type}_BEST_R2.pth"
+            model_filename = f"Best_R2.pth"
             save_model(model, model_filename, save_dir, verbose=verbose)
         
         # Save model after every specified number of epochs
         if epoch % save_interval == 0:
-            model_filename = f"{model_type}_epoch{epoch}.pth"
+            model_filename = f"Epoch{epoch}.pth"
             save_model(model, model_filename, save_dir, verbose=verbose)
             
         if verbose: print("="*90) # Purely visual
-
+        
+    training_end = time.time()
+    training_duration_in_seconds = training_end - training_start
+    minutes = int(training_duration_in_seconds // 60)
+    seconds = int(training_duration_in_seconds % 60)
+    print(f"(4) Training completed in {minutes} minutes, {seconds} seconds.")
     return training_loss_history, validation_loss_history, mae_history, r2_history, normalizer
  
     

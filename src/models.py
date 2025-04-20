@@ -132,6 +132,9 @@ class CryptoTransformer(CryptoBaseModel):
         # Input embedding layer
         self.embedding = nn.Linear(input_size, hidden_size)
         
+        # Add learnable CLS token
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, hidden_size))
+        
         # Positional encoder to inject sequence order information
         # Needed as self-attention mechanisms of Transformers are inherently permutation-invariant
         self.positional_encoder = SinusoidalPositionalEncoding(
@@ -167,17 +170,22 @@ class CryptoTransformer(CryptoBaseModel):
         # Embed input features
         x = self.embedding(x) # (batch_size, seq_length, hidden_size)
         
+        # Prepend CLS token to each input sequence (learns to capture aggregate sequence-level information)
+        batch_size = x.size(0)
+        cls_tokens = self.cls_token.expand(batch_size, 1, -1) # (batch_size, 1, hidden_size)
+        x = torch.cat([cls_tokens, x], dim=1) # (batch_size, seq_len+1, hidden_size)
+        
         # Add positional encoding
         x = self.positional_encoder(x)
         
         # Transformer processing (obtain refined, contextualized embedding vectors for each time step)
-        transformer_out = self.transformer_encoder(x) # (batch_size, seq_length, hidden_size)
+        x = self.transformer_encoder(x) # (batch_size, seq_length, hidden_size)
         
-        # Use only the last time step's output (i.e. embedding of last token)
-        last_out = transformer_out[:, -1, :] # (batch_size, hidden_size)
+        # Use the CLS token as input to linear processing layer
+        cls_out = x[:, 0, :] # (batch_size, hidden_size)
         
         # Map the Encoder's last output to a single prediction value (closing price of next time step)
-        pred = self.fc(last_out) # Shape: (batch_size, 1)
+        pred = self.fc(cls_out) # Shape: (batch_size, 1)
         pred = pred.squeeze(-1) # MSELoss expects shape (batch_size,)
         return pred
 
@@ -248,6 +256,9 @@ class CryptoInformer(CryptoBaseModel):
         # Input embedding layer
         self.embedding = nn.Linear(input_size, hidden_size)
         
+        # Add learnable CLS token
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, hidden_size))
+        
         # Positional encoder to inject sequence order information
         # Needed as self-attention mechanisms of Transformers are inherently permutation-invariant
         self.positional_encoder = SinusoidalPositionalEncoding(
@@ -297,6 +308,11 @@ class CryptoInformer(CryptoBaseModel):
         # Embed input features
         x = self.embedding(x) # (batch_size, seq_length, hidden_size)
         
+        # Prepend CLS token to each input sequence (learns to capture aggregate sequence-level information)
+        batch_size = x.size(0)
+        cls_tokens = self.cls_token.expand(batch_size, 1, -1) # (batch_size, 1, hidden_size)
+        x = torch.cat([cls_tokens, x], dim=1) # (batch_size, seq_len+1, hidden_size)
+        
         # Add positional encoding
         x = self.positional_encoder(x)
         
@@ -308,12 +324,12 @@ class CryptoInformer(CryptoBaseModel):
             # Distilling between layers
             if self.distil and i < len(self.encoder_layers) - 1: # for all but last encoder layer
                 x = self.distil_layers[i](x)
-                
-        # Use only the last time step's output (i.e. embedding of last token)
-        last_out = x[:, -1, :] # (batch_size, hidden_size)
+        
+        # Use the CLS token as input to linear processing layer
+        cls_out = x[:, 0, :] # (batch_size, hidden_size)
         
         # Map the Encoder's last output to a single prediction value (closing price of next time step)
-        pred = self.fc(last_out) # Shape: (batch_size, 1)
+        pred = self.fc(cls_out) # Shape: (batch_size, 1)
         pred = pred.squeeze(-1) # MSELoss expects shape (batch_size,)
         return pred
     
