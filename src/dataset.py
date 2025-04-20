@@ -45,6 +45,10 @@ class CryptoDataset(Dataset):
                 self.sequence_indices.append(group.index[i])
                 
         self.sequence_indices = np.array(self.sequence_indices, dtype=np.int64)
+        
+        # Symbol to index map (symbol NOT used for prediction)
+        self.symbol_to_idx = {symbol: idx for idx, symbol in enumerate(self.df['symbol'].unique())}
+        self.idx_to_symbol = {idx: symbol for symbol, idx in self.symbol_to_idx.items()}
     
     def __len__(self):
         return len(self.sequence_indices)
@@ -57,10 +61,15 @@ class CryptoDataset(Dataset):
         sequence_features = self.df.iloc[start_idx: end_idx][self.feature_cols].values
         # Get target: next time step's closing price
         target = self.df.iloc[end_idx][self.target_col]
+        # Get crypto type of the sequence (NOT used for prediction)
+        crypto_symbol = self.df.iloc[start_idx]['symbol']
+        symbol_idx = self.symbol_to_idx[crypto_symbol]
         
         X = torch.tensor(sequence_features, dtype=torch.float32) # Shape: (seq_length, num_features)
         y = torch.tensor(target, dtype=torch.float32) # Scalar target
-        return X, y
+        symbol_idx = torch.tensor(symbol_idx, dtype=torch.long)
+        
+        return X, y, symbol_idx
     
     
 class Normalizer:

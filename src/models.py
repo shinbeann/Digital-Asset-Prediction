@@ -118,7 +118,7 @@ class CryptoTransformer(CryptoBaseModel):
         self,
         input_size: int = 11,
         hidden_size: int = 64, # i.e. d_model
-        num_layers: int = 2,
+        num_layers: int = 4,
         dropout_prob: float = 0.1,
         num_heads: int = 4,
         dim_feedforward: int = 256, # i.e. d_ff
@@ -238,7 +238,7 @@ class CryptoInformer(CryptoBaseModel):
         self,
         input_size: int = 11,
         hidden_size: int = 64, # i.e. d_model
-        num_layers: int = 2,
+        num_layers: int = 4,
         dropout_prob: float = 0.1,
         num_heads: int = 4,
         dim_feedforward: int = 256, # i.e. d_ff

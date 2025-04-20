@@ -52,8 +52,8 @@ def train_model(
             Defaults to None, in which case the device will be set to CUDA if available, or CPU otherwise.
             
     Returns:
-        Tuple[List[float], List[float], List[float], List[float], Normalizer]: A tuple containing the history (values 
-            per epoch) for: training loss, validation loss, mean absolute error, R2 score, and `Normalizer` object which
+        Tuple[List[float], List[float], List[float], List[float], List[float], Normalizer]: A tuple containing the history (values 
+            per epoch) for: training loss, validation loss, Mean Absolute Error, R2 score, Explained Variance and `Normalizer` object which
             contains the normalization statistics (mean and std) of the training data (to be used for normalization of
             inputs during inference).
     """
@@ -63,7 +63,7 @@ def train_model(
     if verbose: print(f"Model moved to {device}")
     
     criterion = nn.MSELoss() # Can also consider `SmoothL1Loss` i.e. Huber Loss (middle ground between MSE and L1)
-    training_loss_history, validation_loss_history, mae_history, r2_history = [], [], [], []
+    training_loss_history, validation_loss_history, mae_history, r2_history, explained_var_history = [], [], [], [], []
     
     # Create subdirectory to save models to during training session
     os.makedirs(base_dir, exist_ok=True)
@@ -95,7 +95,7 @@ def train_model(
             optimizer.zero_grad()
             
             # Unpack the mini-batch data and move batch data to device
-            seq_batch, target_batch = batch
+            seq_batch, target_batch, symbols_batch = batch
             seq_batch = seq_batch.to(device)
             target_batch = target_batch.to(device)
             
@@ -116,10 +116,11 @@ def train_model(
         training_loss = total_training_loss / len(train_dataloader)
         training_loss_history.append(training_loss)
         # 2) Evaluate model on validation set
-        validation_loss, validation_mae, validation_r2 = evaluate_crypto_model(model, validation_dataloader, normalizer)
+        validation_loss, validation_mae, validation_r2, validation_explained_var = evaluate_crypto_model(model, validation_dataloader, normalizer)
         validation_loss_history.append(validation_loss)
         mae_history.append(validation_mae)
         r2_history.append(validation_r2)
+        explained_var_history.append(validation_explained_var)
         # 3) Record time taken for epoch (training + validation)
         epoch_end = time.time()
         epoch_time = epoch_end - epoch_start
@@ -127,7 +128,7 @@ def train_model(
         if verbose:
             print(f"Epoch [{epoch}/{num_epochs}] | Time: {epoch_time:.2f}s")
             print(f"(Training) Loss: {training_loss:.4f}")
-            print(f"(Validation) Loss: {validation_loss:.4f}, MAE: {validation_mae:.4f}, R2: {validation_r2:.4f}")
+            print(f"(Validation) Loss: {validation_loss:.4f}, MAE: {validation_mae:.4f}, R2: {validation_r2:.4f}, Explained Variance: {validation_explained_var:.4f}")
                 
         model_type: str = type(model).__name__
         # Save model if it has best R2
@@ -148,7 +149,7 @@ def train_model(
     minutes = int(training_duration_in_seconds // 60)
     seconds = int(training_duration_in_seconds % 60)
     print(f"(4) Training completed in {minutes} minutes, {seconds} seconds.")
-    return training_loss_history, validation_loss_history, mae_history, r2_history, normalizer
+    return training_loss_history, validation_loss_history, mae_history, r2_history, explained_var_history, normalizer
  
     
 def evaluate_crypto_model(
@@ -156,7 +157,7 @@ def evaluate_crypto_model(
     evaluation_dataloader: DataLoader,
     normalizer: Normalizer,
     device: Optional[torch.device] = None
-) -> Tuple[float, float, float]:
+) -> Tuple[float, float, float, float]:
     """
     Evaluates the model's performance on the given evaluation dataset. 
 
@@ -170,7 +171,7 @@ def evaluate_crypto_model(
 
     Returns:
         Tuple[float, float, float]: Tuple containing the model's average evaluation loss (per sample sequence), 
-            mean absolute error, and R2 score. 
+            Mean Absolute Error, R2 score, and Explained Variance Score.
     """
     device = device or next(model.parameters()) # Infer the device the model is on by checking the first parameter
     
@@ -179,11 +180,12 @@ def evaluate_crypto_model(
     total_loss = 0
     mae = torchmetrics.MeanAbsoluteError().to(device)
     r2 = torchmetrics.R2Score().to(device)
+    explained_var = torchmetrics.ExplainedVariance().to(device)
     
     with torch.no_grad():  # No gradients needed for evaluation
         for batch in evaluation_dataloader:
             # Unpack the mini-batch data and move batch data to device
-            seq_batch, target_batch = batch
+            seq_batch, target_batch, symbols_batch = batch
             seq_batch = seq_batch.to(device)
             target_batch = target_batch.to(device)
             
@@ -198,13 +200,15 @@ def evaluate_crypto_model(
             total_loss += loss.item()
             mae.update(preds, target_batch)
             r2.update(preds, target_batch)
+            explained_var.update(preds, target_batch)
 
     # Compute final metric values
     final_evaluation_loss = total_loss / len(evaluation_dataloader)
     final_mae = mae.compute().item()
     final_r2 = r2.compute().item()
+    final_explained_var = explained_var.compute().item()
 
-    return final_evaluation_loss, final_mae, final_r2
+    return final_evaluation_loss, final_mae, final_r2, final_explained_var
 
 
 def save_model(
@@ -232,10 +236,11 @@ def save_training_plots_and_metric_history(
     validation_loss_history: List[float], 
     mae_history: List[float], 
     r2_history: List[float], 
+    explained_var_history: List[float],
     model_name: str,
     figsize: Tuple[float, float] = (7.0, 4.0),
     base_dir: str = "results"
-) -> None:
+) -> str:
     """
     Saves plots for the training process metrics (`.png` images) and the input metric histories in a subdirectory
     inside the specified directory.
@@ -245,9 +250,13 @@ def save_training_plots_and_metric_history(
         validation_loss_history (List[float]): History of validation loss values.
         mae_history (List[float]): History of Mean Absolute Error (MAE) values.
         r2_history (List[float]): History of R2 score values.
+        explained_var_history (List[float]): History of Explained Variance values.
         model_name (str): Name of model (only for the subdirectory name).
         figsize (Tuple[float, float]): Width, height of plots in inches. Defaults to (7.0, 4.0). 
         base_dir (str, optional): Directory to save plots and histories of metrics in. Defaults to "results".
+        
+    Returns:
+        str: The save directory.
     """
     # Create subdirectory to save metric histories and the plots to. 
     os.makedirs(base_dir, exist_ok=True) # Creates base directory
@@ -258,8 +267,8 @@ def save_training_plots_and_metric_history(
     epochs = range(1, len(training_loss_history) + 1)  
 
     # Plotting for all metrics
-    eval_metric_names = ["Training Loss", "Validation Loss", "MAE", "R2 score"]
-    eval_metrics = [training_loss_history, validation_loss_history, mae_history, r2_history]
+    eval_metric_names = ["Training Loss", "Validation Loss", "MAE", "R2 score", "Explained Variance"]
+    eval_metrics = [training_loss_history, validation_loss_history, mae_history, r2_history, explained_var_history]
 
     # Create and save the plots
     for i, eval_metric in enumerate(eval_metric_names):
@@ -281,10 +290,12 @@ def save_training_plots_and_metric_history(
         "training_loss_history": torch.tensor(training_loss_history),
         "validation_loss_history": torch.tensor(validation_loss_history),
         "mae_history": torch.tensor(mae_history),
-        "r2_history": torch.tensor(r2_history)
+        "r2_history": torch.tensor(r2_history),
+        "explained_var_history": torch.tensor(explained_var_history)
     }
 
     # Save all histories as a dictionary
     history_path = os.path.join(save_dir, "metric_histories.pth")
     torch.save(metric_histories, history_path)
     print(f"✅ Metric histories saved to: {history_path}")
+    return save_dir
