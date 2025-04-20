@@ -1,0 +1,6 @@
+CryptoTransformer
+[Test Results]
+Loss: 9131190.935449218
+MAE: 377.2178039550781
+R2: 0.8958491086959839
+Explained Variance: 0.8970164060592651

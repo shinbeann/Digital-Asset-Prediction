@@ -85,7 +85,7 @@ class CryptoLSTM(CryptoBaseModel):
         self, 
         input_size: int = 11, 
         hidden_size: int = 64, 
-        num_layers: int = 2, 
+        num_layers: int = 3, 
         dropout_prob: float = 0.1,
         bidirectional: bool = True
     ):
