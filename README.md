@@ -1,29 +1,40 @@
+# Digital Asset Prediction
+The primary objective of this project is to forecast the future closing prices of digital assets in order to construct an optimal cryptocurrency portfolio. Specifically, we aim to develop a predictive model that, given a historical sequence of a cryptocurrency's data, estimates its closing price for the following day. Accurate forecasting of asset prices and market dynamics enables dynamic portfolio allocation strategies that seek to maximize returns while minimizing associated risks. To enhance prediction performance, the model integrates asset-specific features (such as open, high, low, and close prices, trading volume, and market capitalization) with macroeconomic indicators (including the S\&P 500 index and treasury yield spread) and sentiment metrics (such as the Fear and Greed Index), enabling more informed investment decisions.
 
-### 📂 `data/`
-Contains all data-related files for the project.
-- **`raw/`**: Contains unprocessed datasets (e.g., raw podcast audio files, market price data, etc.).
-  - **`podcasts/`**: Raw audio files of podcasts.
-  - **`podcast_transcripts/`**: Raw, unprocessed transcripts extracted from the podcasts.
-- **`processed/`**: Contains cleaned and preprocessed data.
+## Table of Contents
+- [Project Overview](#project-overview)
+- [Usage](#usage)
+- [Acknowledgements](#acknowledgements)
 
-### 📂 `notebooks/`
-Contains Jupyter notebooks for different stages of the project.
+## Project Overview
+- `data/`: Contains raw (scraped) and processed datasets.
+- `demo_results/`: Model results obtained from running `notebooks/demo_inference.ipynb`.
+- `notebooks/`: Various notebooks that serve as environments for different processes.
+  - `data_collection.ipynb`: Runs our functions for collecting raw data (but we have already provided the raw datasets in this directory).
+  - `data_processing.ipynb`: Compile the raw datasets and preprocess them, before splitting them into train, validation, and test sets (can be found in `data/processed`). 
+  - `model_training.ipynb`: Contains code for model training.
+  - `demo_inference.ipynb`: Demo notebook for loading in the provided trained model parameters and running them on the test set.
+- `results/`: Training metrics and performance on test set obtained from `model_training.ipynb` automatically saved here by default. 
+- `saved_models/`: Contains trained model parameters (from running `model_training.ipynb`).
+- `src/`:
+    - `data_collection/`: Contains code for downloading raw datasets from online programmatically.
+    - `dataset.py`: Contains code for our PyTorch dataset object.
+    - `models.py`: Contains code for four deep learning architectures for sequence processing implemented in PyTorch - GRU, LSTM, Transformer, and Informer.
+    - `train_eval.py`: Contains code for training and evaluation of models.
+    - `utils.py`: Helper functions.
+- `ui/`: Contains code for running GUI
 
+## Usage
+This code was developed using Python 3.12.8.
 
-### 📂 `src/`
-- `data_collection/`: 
-    - **`fetch_podcast_transcripts.py`**: Script to convert podcast audio files to text
-    - **`web_scraper.py`**: Scrapes data from external sources
-
-- `preprocessing/`
-    - **`clean_transcripts.py`**: NLP processing of podcast transcripts, including text cleaning and normalization
-
-
-### 📂 `utils/`
-Contains utility functions and configurations
-- **`config.py`**: Stores configuration settings like API keys
-
-
-
-### others
- [tps://www.assemblyai.com/app](https://www.assemblyai.com/app) - check credits used
+1. Clone the repository:
+    ```bash
+    git clone https://github.com/shinbeann/Digital-Asset-Prediction
+    cd Digital-Asset-Prediction
+    ```
+2. Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3. Run the various notebooks for data collection, processing, training, and inference (see above).
+4. The GUI can be ran using [TODO]
