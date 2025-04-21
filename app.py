@@ -208,23 +208,5 @@ if selected_date:
         *Lower MAE indicate better predictions. R² closer to 1 is ideal.*
         """)
 
-        st.subheader("Actual vs Predicted Prices")
-        fig, ax = plt.subplots(figsize=(8, 6))
-        
-        # Create scatter plot
-        ax.scatter(results_df['actual_close'], results_df['predicted_close'], alpha=0.6)
-        
-        # Add line of perfect prediction
-        max_val = max(results_df['actual_close'].max(), results_df['predicted_close'].max())
-        min_val = min(results_df['actual_close'].min(), results_df['predicted_close'].min())
-        ax.plot([min_val, max_val], [min_val, max_val], 'r--')
-        
-        ax.set_xlabel('Actual Close Price')
-        ax.set_ylabel('Predicted Close Price')
-        ax.set_title('Actual vs Predicted Prices')
-        ax.grid(True)
-        
-        st.pyplot(fig)
-
     else:
         st.warning("Not enough data to make predictions for the selected date.")
