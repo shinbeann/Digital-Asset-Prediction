@@ -5,9 +5,10 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-
+from sklearn.metrics import r2_score
 from src.models import CryptoInformer  # Your model class
 from src.dataset import Normalizer, CryptoDataset
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 # Constants
 TEST_PATH = "data/processed/test_set.csv"
@@ -108,6 +109,13 @@ if selected_date:
     if crypto_inputs:
         results_df = pd.DataFrame(crypto_inputs)
         results_df = results_df.sort_values(by='predicted_close', ascending=False)
+        r2 = r2_score(results_df['actual_close'], results_df['predicted_close'])
+
+        y_true = results_df['actual_close']
+        y_pred = results_df['predicted_close']
+
+        mae = mean_absolute_error(y_true, y_pred)
+    
 
         # Calculate percentage increase from previous close
         results_df['percentage_increase'] = (results_df['predicted_close'] - results_df['prev_close']) / results_df['prev_close'] * 100
@@ -190,6 +198,33 @@ if selected_date:
             ax.set_title('Portfolio Allocation', pad=20)
             plt.tight_layout()
             st.pyplot(fig)
+
+        st.subheader("Model Performance")
+    
+        st.markdown(f"""
+        **R² Score:** {r2:.3f}  
+        **MAE (Mean Absolute Error):** {mae:.2f}  
+
+        *Lower MAE indicate better predictions. R² closer to 1 is ideal.*
+        """)
+
+        st.subheader("Actual vs Predicted Prices")
+        fig, ax = plt.subplots(figsize=(8, 6))
+        
+        # Create scatter plot
+        ax.scatter(results_df['actual_close'], results_df['predicted_close'], alpha=0.6)
+        
+        # Add line of perfect prediction
+        max_val = max(results_df['actual_close'].max(), results_df['predicted_close'].max())
+        min_val = min(results_df['actual_close'].min(), results_df['predicted_close'].min())
+        ax.plot([min_val, max_val], [min_val, max_val], 'r--')
+        
+        ax.set_xlabel('Actual Close Price')
+        ax.set_ylabel('Predicted Close Price')
+        ax.set_title('Actual vs Predicted Prices')
+        ax.grid(True)
+        
+        st.pyplot(fig)
 
     else:
         st.warning("Not enough data to make predictions for the selected date.")

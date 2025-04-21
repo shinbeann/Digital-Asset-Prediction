@@ -208,6 +208,7 @@ def evaluate_crypto_model(
     final_r2 = r2.compute().item()
     final_explained_var = explained_var.compute().item()
 
+
     return final_evaluation_loss, final_mae, final_r2, final_explained_var
 
 
