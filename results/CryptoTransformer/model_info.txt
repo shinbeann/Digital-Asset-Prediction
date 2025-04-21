@@ -1,0 +1,21 @@
+[Dataset Configuration]
+Sequence size: 14
+Stride: 1
+Random seed: 42
+
+[Training Hyperparameters]
+Optimizer: Adam
+Batch Size: 256
+Learning Rate: 0.001
+Epochs: 25
+Weight Decay (L2 Regularization): 1e-05
+
+[Model Hyperparameters]
+model_kwargs: Default model hyperparameter values used.
+
+[Test Results]
+(Testing model parameters from last epoch)
+Loss: 8660741.646875
+MAE: 377.8562316894531
+R2: 0.9012153744697571
+Explained Variance: 0.9023323059082031
